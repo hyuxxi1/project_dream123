@@ -62,7 +62,6 @@ def get_meal_info(api_key, office_code, school_code, date_str, meal_code):
         data = response.json()
         meal_info = data["mealServiceDietInfo"][1]["row"][0]
 
-        # 메뉴 파싱 (<br/> 줄바꿈 변환, 알레르기 번호 유지)
         raw_menu = meal_info.get("DDISH_NM", "")
         clean_menu = raw_menu.replace("<br/>", "\n").strip()
 
@@ -82,22 +81,47 @@ def get_meal_info(api_key, office_code, school_code, date_str, meal_code):
 def get_current_meal_target(now):
     now_hour = now.hour
     if now_hour < 7:
-        return now, "1", "오늘의 조식 메뉴"
+        return now.date(), "1", "오늘의 조식"
     elif 7 <= now_hour < 9:
-        return now, "1", "오늘의 조식 메뉴"
+        return now.date(), "1", "오늘의 조식"
     elif 9 <= now_hour < 13:
-        return now, "2", "오늘의 중식 메뉴"
+        return now.date(), "2", "오늘의 중식"
     elif 13 <= now_hour < 19:
-        return now, "3", "오늘의 석식 메뉴"
+        return now.date(), "3", "오늘의 석식"
     else:
-        return now + datetime.timedelta(days=1), "1", "내일의 조식 메뉴"
+        return (now + datetime.timedelta(days=1)).date(), "1", "내일의 조식"
 
 
 # --- Streamlit UI 구성 ---
 st.title("🍱 우리 학교 급식 알리미")
-st.write("현재 시각에 맞춰 조식, 중식, 석식 메뉴 및 건강 정보를 보여줍니다.")
+st.write(
+    "현재 시각에 맞춘 급식 정보나, 원하는 날짜/식사 종류를 선택하여 조회할 수 있습니다."
+)
 
+# KST 기준 현재 시각
+KST = datetime.timezone(datetime.timedelta(hours=9))
+now = datetime.datetime.now(KST)
+
+# 학교 입력
 school_input = st.text_input("학교 이름을 입력하세요", placeholder="예: 서울고등학교")
+
+# 옵션 선택: 자동 vs 직접 선택
+use_custom_date = st.checkbox("📅 날짜 및 식사 직접 선택하기")
+
+if use_custom_date:
+    col_date, col_meal = st.columns(2)
+    with col_date:
+        selected_date = st.date_input("조회할 날짜", value=now.date())
+    with col_meal:
+        meal_option = st.selectbox("식사 구분", ["조식", "중식", "석식"])
+        meal_code_map = {"조식": "1", "중식": "2", "석식": "3"}
+        meal_code = meal_code_map[meal_option]
+        meal_title = f"{selected_date.strftime('%Y년 %m월 %d일')} {meal_option}"
+    target_date_str = selected_date.strftime("%Y%m%d")
+else:
+    auto_date, meal_code, auto_title = get_current_meal_target(now)
+    target_date_str = auto_date.strftime("%Y%m%d")
+    meal_title = f"{auto_title} ({auto_date.strftime('%Y년 %m월 %d일')})"
 
 if st.button("급식 조회하기") or school_input:
     if not school_input.strip():
@@ -119,28 +143,20 @@ if st.button("급식 조회하기") or school_input:
         elif not office_code:
             st.error(f"❌ '{school_input}' 검색 결과를 찾을 수 없습니다.")
         else:
-            # 💡 한국 표준시(KST, UTC+9) 적용
-            KST = datetime.timezone(datetime.timedelta(hours=9))
-            now = datetime.datetime.now(KST)
-
-            target_date, meal_code, meal_title = get_current_meal_target(now)
-            date_str = target_date.strftime("%Y%m%d")
-            date_formatted = target_date.strftime("%Y년 %m월 %d일")
-
             st.success(
                 f"🏫 **{real_school_name}** | 🕒 현재 시각: {now.strftime('%H시 %M분')}"
             )
-            st.subheader(f"{meal_title} ({date_formatted})")
+            st.subheader(f"🍽️ {meal_title}")
 
             meal_data = get_meal_info(
-                NEIS_API_KEY, office_code, school_code, date_str, meal_code
+                NEIS_API_KEY, office_code, school_code, target_date_str, meal_code
             )
 
             if meal_data:
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    st.markdown("### 🥗 오늘의 메뉴 (알레르기 번호)")
+                    st.markdown("### 🥗 식단 메뉴 (알레르기 번호)")
                     st.text(meal_data["menu"])
 
                 with col2:
@@ -149,7 +165,6 @@ if st.button("급식 조회하기") or school_input:
                     st.caption(f"**영양 성분**\n{meal_data['ntr_info']}")
 
                 st.markdown("---")
-                # 알레르기 안내 표 추가
                 with st.expander("⚠️ **알레르기 유발물질 번호 안내**"):
                     st.markdown(
                         """
@@ -160,4 +175,4 @@ if st.button("급식 조회하기") or school_input:
                         """
                     )
             else:
-                st.info("해당 날짜의 급식 정보가 없거나 주말/휴업일입니다.")
+                st.info("해당 날짜/시간대의 급식 정보가 없거나 주말/휴업일입니다.")
