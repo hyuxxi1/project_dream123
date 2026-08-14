@@ -189,17 +189,32 @@ def get_current_meal_target(now):
 
 
 # ---------------------------------------------------------
-# 상단 커버 카드 헤더
+# 상단 커버 카드 (양쪽 이미지 + 가운데 제목)
 # ---------------------------------------------------------
-st.markdown(
-    """
-    <div class="hero-card">
-        <div class="hero-title">🍱 급식 알리미</div>
-        <div class="hero-subtitle">실시간 맞춤 급식 메뉴와 세부 영양 정보를 확인해 보세요!</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+col_left, col_center, col_right = st.columns([1, 3, 1])
+
+with col_left:
+    # 👈 따옴표 안을 원하는 따개비루 이미지 URL로 변경
+    st.image(
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRKoxC9vicVXGXWPxrRTpbn8j84IXnozszyUE0DxkaEurN8Ky1D2ZZr978J&s=10", use_container_width=True
+    )
+
+with col_center:
+    st.markdown(
+        """
+        <div class="hero-card" style="margin-bottom: 0;">
+            <div class="hero-title">🍱 급식 알리미</div>
+            <div class="hero-subtitle">실시간 맞춤 급식 메뉴와 세부 영양 정보를 확인해 보세요!</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with col_right:
+    # 👈 따옴표 안을 원하는 따개비루 이미지 URL로 변경
+    st.image(
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRKoxC9vicVXGXWPxrRTpbn8j84IXnozszyUE0DxkaEurN8Ky1D2ZZr978J&s=10", use_container_width=True
+    )
 
 # KST 기준 현재 시각
 KST = datetime.timezone(datetime.timedelta(hours=9))
