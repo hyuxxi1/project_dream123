@@ -213,7 +213,7 @@ with col_center:
 with col_right:
     # 👈 따옴표 안을 원하는 따개비루 이미지 URL로 변경
     st.image(
-        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRKoxC9vicVXGXWPxrRTpbn8j84IXnozszyUE0DxkaEurN8Ky1D2ZZr978J&s=10", use_container_width=True
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQsSpJo9MGbQPhEfVpyti5-i_niOpY-gaoyRwpljB7U_Ag4tZW4RhdtnQq9&s=10", use_container_width=True
     )
 
 # KST 기준 현재 시각
