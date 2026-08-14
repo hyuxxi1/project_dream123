@@ -17,7 +17,6 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* 1. 상단 커버 카드 (회색 배경 + 다크모드 대응) */
     .hero-card {
         background-color: var(--background-secondary-color, #f0f2f6);
         color: var(--text-color, #000000);
@@ -38,7 +37,6 @@ st.markdown(
         opacity: 0.8;
         margin-top: 8px;
     }
-    /* 식단 메뉴 박스 */
     .menu-card {
         background-color: var(--background-secondary-color, #f8f9fa);
         border-left: 5px solid #4CAF50;
@@ -53,20 +51,15 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------------------------------------------------------
-# API 키 설정 (Streamlit Secrets 또는 코드 직접 입력)
-# ---------------------------------------------------------
+# API 키 설정
 if "NEIS_API_KEY" in st.secrets:
     NEIS_API_KEY = st.secrets["NEIS_API_KEY"]
 else:
-    NEIS_API_KEY = "475158beb13640a08d94b5fa99bb678f"  # 여기에 본인 API 키 입력
+    NEIS_API_KEY = "475158beb13640a08d94b5fa99bb678f"
 
 
-# ---------------------------------------------------------
-# API 데이터 처리 함수
-# ---------------------------------------------------------
 def get_school_info(api_key, school_name):
-    if api_key == "YOUR_NEIS_API_KEY_HERE" or not api_key:
+    if api_key == "475158beb13640a08d94b5fa99bb678f" or not api_key:
         return None, None, "API_KEY_MISSING"
 
     url = "https://open.neis.go.kr/hub/schoolInfo"
@@ -97,7 +90,7 @@ def get_school_info(api_key, school_name):
 
 
 def format_nutrition_with_emojis(raw_ntr):
-    """4. 영양 정보 이모지 시각화"""
+    """영양 정보 한 줄씩 정렬 및 이모지 적용"""
     if not raw_ntr:
         return "영양 정보 없음"
 
@@ -105,28 +98,33 @@ def format_nutrition_with_emojis(raw_ntr):
         "탄수화물": "🍚 탄수화물",
         "단백질": "🥩 단백질",
         "지방": "🥑 지방",
-        "비타민": "🥦 비타민",
+        "비타민A": "🥦 비타민A",
+        "비타민C": "🥦 비타민C",
         "칼슘": "🥛 칼슘",
         "철분": "🥬 철분",
         "나트륨": "🧂 나트륨",
     }
 
+    raw_clean = raw_ntr.replace("<br/>", "\n").replace(" • ", "\n").replace("·", "\n")
+    items = raw_clean.split("\n")
+
     formatted_items = []
-    items = raw_ntr.split("<br/>")
     for item in items:
         item_str = item.strip()
         if not item_str:
             continue
+
         replaced = False
         for key, val in emoji_map.items():
             if key in item_str:
-                formatted_items.append(item_str.replace(key, val))
+                formatted_items.append(f"• {item_str.replace(key, val)}")
                 replaced = True
                 break
-        if not replaced:
-            formatted_items.append(f"🔹 {item_str}")
 
-    return "\n".join([f"• {it}" for it in formatted_items])
+        if not replaced:
+            formatted_items.append(f"• 🔹 {item_str}")
+
+    return "\n".join(formatted_items)
 
 
 def get_meal_info(api_key, office_code, school_code, date_str, meal_code):
@@ -176,9 +174,7 @@ def get_current_meal_target(now):
         return (now + datetime.timedelta(days=1)).date(), "1", "내일의 조식"
 
 
-# ---------------------------------------------------------
-# 1. 상단 커버 카드 헤더
-# ---------------------------------------------------------
+# 상단 커버 카드 헤더
 st.markdown(
     """
     <div class="hero-card">
@@ -193,16 +189,14 @@ st.markdown(
 KST = datetime.timezone(datetime.timedelta(hours=9))
 now = datetime.datetime.now(KST)
 
-# ---------------------------------------------------------
-# 3. 최근 검색 학교 기억 기능 (Session State)
-# ---------------------------------------------------------
+# 최근 검색 학교 기억 기능 (Session State)
 if "history" not in st.session_state:
     st.session_state.history = []
 
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
 
-# 검색창 입력값 핸들러
+
 def update_search():
     st.session_state.search_query = st.session_state.input_field
 
@@ -247,9 +241,7 @@ else:
     target_date_str = auto_date.strftime("%Y%m%d")
     meal_title = f"{auto_title} ({auto_date.strftime('%Y년 %m월 %d일')})"
 
-# ---------------------------------------------------------
 # 급식 정보 조회 및 화면 출력
-# ---------------------------------------------------------
 if school_input.strip():
     office_code, school_code, real_school_name = get_school_info(
         NEIS_API_KEY, school_input
@@ -267,7 +259,6 @@ if school_input.strip():
     elif not office_code:
         st.error(f"❌ '{school_input}' 검색 결과를 찾을 수 없습니다.")
     else:
-        # 최근 검색 히스토리에 학교 저장 (최대 4개)
         if real_school_name not in st.session_state.history:
             st.session_state.history.insert(0, real_school_name)
             st.session_state.history = st.session_state.history[:4]
@@ -282,7 +273,6 @@ if school_input.strip():
         )
 
         if meal_data:
-            # 2. 식단 카드 디자인 & 칼로리 카드
             col_menu, col_info = st.columns([3, 2])
 
             with col_menu:
@@ -295,7 +285,6 @@ if school_input.strip():
 
             with col_info:
                 st.markdown("### 📊 건강 정보")
-                # 칼로리 카드 (Metric)
                 st.metric(label="🔥 총 예상 열량", value=meal_data["cal_info"])
 
                 with st.expander("🌱 **세부 영양 성분 보기**", expanded=True):
