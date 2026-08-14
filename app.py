@@ -17,6 +17,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    /* 1. 상단 커버 카드 (회색 배경 + 다크모드 대응) */
     .hero-card {
         background-color: var(--background-secondary-color, #f0f2f6);
         color: var(--text-color, #000000);
@@ -37,6 +38,7 @@ st.markdown(
         opacity: 0.8;
         margin-top: 8px;
     }
+    /* 식단 메뉴 박스 */
     .menu-card {
         background-color: var(--background-secondary-color, #f8f9fa);
         border-left: 5px solid #4CAF50;
@@ -51,13 +53,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# API 키 설정
+# ---------------------------------------------------------
+# API 키 설정 (Streamlit Secrets 또는 코드 직접 입력)
+# ---------------------------------------------------------
 if "NEIS_API_KEY" in st.secrets:
     NEIS_API_KEY = st.secrets["NEIS_API_KEY"]
 else:
-    NEIS_API_KEY = "475158beb13640a08d94b5fa99bb678f"
+    NEIS_API_KEY = "475158beb13640a08d94b5fa99bb678f"  # 여기에 본인 API 키 입력
 
 
+# ---------------------------------------------------------
+# API 데이터 처리 함수
+# ---------------------------------------------------------
 def get_school_info(api_key, school_name):
     if api_key == "YOUR_NEIS_API_KEY_HERE" or not api_key:
         return None, None, "API_KEY_MISSING"
@@ -100,17 +107,24 @@ def format_nutrition_with_emojis(raw_ntr):
         "지방": "🥑 지방",
         "비타민A": "🥦 비타민A",
         "비타민C": "🥦 비타민C",
+        "비타민": "🥦 비타민",
         "칼슘": "🥛 칼슘",
         "철분": "🥬 철분",
         "나트륨": "🧂 나트륨",
     }
 
-    raw_clean = raw_ntr.replace("<br/>", "\n").replace(" • ", "\n").replace("·", "\n")
+    # API 결과의 각종 구분자(•, ·, <br/>)를 전부 줄바꿈으로 정리
+    raw_clean = (
+        raw_ntr.replace("<br/>", "\n")
+        .replace(" • ", "\n")
+        .replace("·", "\n")
+        .replace(" •", "\n")
+    )
     items = raw_clean.split("\n")
 
     formatted_items = []
     for item in items:
-        item_str = item.strip()
+        item_str = item.strip().lstrip("•").strip()
         if not item_str:
             continue
 
@@ -124,7 +138,7 @@ def format_nutrition_with_emojis(raw_ntr):
         if not replaced:
             formatted_items.append(f"• 🔹 {item_str}")
 
-    return "\n".join(formatted_items)
+    return "<br/>".join(formatted_items)
 
 
 def get_meal_info(api_key, office_code, school_code, date_str, meal_code):
@@ -174,7 +188,9 @@ def get_current_meal_target(now):
         return (now + datetime.timedelta(days=1)).date(), "1", "내일의 조식"
 
 
+# ---------------------------------------------------------
 # 상단 커버 카드 헤더
+# ---------------------------------------------------------
 st.markdown(
     """
     <div class="hero-card">
@@ -189,7 +205,9 @@ st.markdown(
 KST = datetime.timezone(datetime.timedelta(hours=9))
 now = datetime.datetime.now(KST)
 
+# ---------------------------------------------------------
 # 최근 검색 학교 기억 기능 (Session State)
+# ---------------------------------------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
@@ -241,7 +259,9 @@ else:
     target_date_str = auto_date.strftime("%Y%m%d")
     meal_title = f"{auto_title} ({auto_date.strftime('%Y년 %m월 %d일')})"
 
+# ---------------------------------------------------------
 # 급식 정보 조회 및 화면 출력
+# ---------------------------------------------------------
 if school_input.strip():
     office_code, school_code, real_school_name = get_school_info(
         NEIS_API_KEY, school_input
@@ -288,7 +308,8 @@ if school_input.strip():
                 st.metric(label="🔥 총 예상 열량", value=meal_data["cal_info"])
 
                 with st.expander("🌱 **세부 영양 성분 보기**", expanded=True):
-                    st.markdown(meal_data["ntr_info"])
+                    # HTML 줄바꿈(<br/>) 출력을 지원하도록 unsafe_allow_html=True 추가
+                    st.markdown(meal_data["ntr_info"], unsafe_allow_html=True)
 
             st.markdown("---")
             with st.expander("⚠️ **알레르기 유발물질 번호 안내**"):
