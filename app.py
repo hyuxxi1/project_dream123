@@ -64,7 +64,7 @@ def get_meal_info(api_key, office_code, school_code, date_str, meal_code):
 
         raw_menu = meal_info.get("DDISH_NM", "")
         clean_menu = raw_menu.replace("<br/>", "\n")
-        clean_menu = re.sub(r"[0-9.]+", "", clean_menu).strip()
+        clean_menu = re.sub(r"\s*\([0-9.]*\)", "", clean_menu).strip()
 
         cal_info = meal_info.get("CAL_INFO", "정보 없음")
         raw_ntr = meal_info.get("NTR_INFO", "")
