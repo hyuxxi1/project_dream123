@@ -11,7 +11,7 @@ st.set_page_config(
 if "NEIS_API_KEY" in st.secrets:
     NEIS_API_KEY = st.secrets["NEIS_API_KEY"]
 else:
-    NEIS_API_KEY = "475158beb13640a08d94b5fa99bb678f"  # 여기에 본인 API 키 입력
+    NEIS_API_KEY = "YOUR_NEIS_API_KEY_HERE"  # 여기에 본인 API 키 입력
 
 
 def get_school_info(api_key, school_name):
@@ -62,9 +62,9 @@ def get_meal_info(api_key, office_code, school_code, date_str, meal_code):
         data = response.json()
         meal_info = data["mealServiceDietInfo"][1]["row"][0]
 
+        # 메뉴 파싱 (<br/> 줄바꿈 변환, 알레르기 번호 유지)
         raw_menu = meal_info.get("DDISH_NM", "")
-        clean_menu = raw_menu.replace("<br/>", "\n")
-        clean_menu = re.sub(r"\s*\([0-9.]*\)", "", clean_menu).strip()
+        clean_menu = raw_menu.replace("<br/>", "\n").strip()
 
         cal_info = meal_info.get("CAL_INFO", "정보 없음")
         raw_ntr = meal_info.get("NTR_INFO", "")
@@ -140,12 +140,24 @@ if st.button("급식 조회하기") or school_input:
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    st.markdown("### 🥗 오늘의 메뉴")
+                    st.markdown("### 🥗 오늘의 메뉴 (알레르기 번호)")
                     st.text(meal_data["menu"])
 
                 with col2:
                     st.markdown("### 🌱 건강 & 영양 정보")
                     st.info(f"**열량**: {meal_data['cal_info']}")
                     st.caption(f"**영양 성분**\n{meal_data['ntr_info']}")
+
+                st.markdown("---")
+                # 알레르기 안내 표 추가
+                with st.expander("⚠️ **알레르기 유발물질 번호 안내**"):
+                    st.markdown(
+                        """
+                        1. 난류 &nbsp;&nbsp;&nbsp;&nbsp; 2. 우유 &nbsp;&nbsp;&nbsp;&nbsp; 3. 메밀 &nbsp;&nbsp;&nbsp;&nbsp; 4. 땅콩 &nbsp;&nbsp;&nbsp;&nbsp; 5. 대두  
+                        6. 밀 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 7. 고등어 &nbsp;&nbsp; 8. 게 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 9. 새우 &nbsp;&nbsp;&nbsp;&nbsp; 10. 돼지고기  
+                        11. 복숭아 &nbsp; 12. 토마토 &nbsp; 13. 아황산류 &nbsp; 14. 호두 &nbsp;&nbsp;&nbsp;&nbsp; 15. 닭고기  
+                        16. 쇠고기 &nbsp; 17. 오징어 &nbsp; 18. 조개류(굴, 전복, 홍합 포함) &nbsp; 19. 잣
+                        """
+                    )
             else:
                 st.info("해당 날짜의 급식 정보가 없거나 주말/휴업일입니다.")
