@@ -7,7 +7,7 @@ import requests
 # ---------------------------------------------------------
 # [필수] 나이스 오픈 API 인증키 설정
 # ---------------------------------------------------------
-NEIS_API_KEY = "YOUR_NEIS_API_KEY_HERE"
+NEIS_API_KEY = "475158beb13640a08d94b5fa99bb678f"
 
 
 def get_school_info(api_key, school_name):
