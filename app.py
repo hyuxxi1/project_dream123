@@ -3,17 +3,68 @@ import re
 import requests
 import streamlit as st
 
+# 페이지 기본 설정
 st.set_page_config(
-    page_title="학교 급식 알리미", page_icon="🍱", layout="centered"
+    page_title="급식 알리미",
+    page_icon="🍱",
+    layout="centered",
+    initial_sidebar_state="collapsed",
 )
 
-# 1. Streamlit Secrets에서 API 키를 가져오고, 없으면 변수값 사용
+# ---------------------------------------------------------
+# [디자인] 커스텀 CSS (다크모드 지원 및 상단 회색 커버 카드)
+# ---------------------------------------------------------
+st.markdown(
+    """
+    <style>
+    /* 1. 상단 커버 카드 (회색 배경 + 다크모드 대응) */
+    .hero-card {
+        background-color: var(--background-secondary-color, #f0f2f6);
+        color: var(--text-color, #000000);
+        padding: 24px;
+        border-radius: 12px;
+        text-align: center;
+        margin-bottom: 20px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .hero-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        margin: 0;
+        padding: 0;
+    }
+    .hero-subtitle {
+        font-size: 0.95rem;
+        opacity: 0.8;
+        margin-top: 8px;
+    }
+    /* 식단 메뉴 박스 */
+    .menu-card {
+        background-color: var(--background-secondary-color, #f8f9fa);
+        border-left: 5px solid #4CAF50;
+        padding: 16px 20px;
+        border-radius: 8px;
+        font-size: 1.05rem;
+        line-height: 1.8;
+        margin-bottom: 15px;
+    }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------
+# API 키 설정 (Streamlit Secrets 또는 코드 직접 입력)
+# ---------------------------------------------------------
 if "NEIS_API_KEY" in st.secrets:
     NEIS_API_KEY = st.secrets["NEIS_API_KEY"]
 else:
-    NEIS_API_KEY = "475158beb13640a08d94b5fa99bb678f"  # 여기에 본인 API 키 입력
+    NEIS_API_KEY = "YOUR_NEIS_API_KEY_HERE"  # 여기에 본인 API 키 입력
 
 
+# ---------------------------------------------------------
+# API 데이터 처리 함수
+# ---------------------------------------------------------
 def get_school_info(api_key, school_name):
     if api_key == "YOUR_NEIS_API_KEY_HERE" or not api_key:
         return None, None, "API_KEY_MISSING"
@@ -45,6 +96,39 @@ def get_school_info(api_key, school_name):
         return None, None, f"ERROR: {str(e)}"
 
 
+def format_nutrition_with_emojis(raw_ntr):
+    """4. 영양 정보 이모지 시각화"""
+    if not raw_ntr:
+        return "영양 정보 없음"
+
+    emoji_map = {
+        "탄수화물": "🍚 탄수화물",
+        "단백질": "🥩 단백질",
+        "지방": "🥑 지방",
+        "비타민": "🥦 비타민",
+        "칼슘": "🥛 칼슘",
+        "철분": "🥬 철분",
+        "나트륨": "🧂 나트륨",
+    }
+
+    formatted_items = []
+    items = raw_ntr.split("<br/>")
+    for item in items:
+        item_str = item.strip()
+        if not item_str:
+            continue
+        replaced = False
+        for key, val in emoji_map.items():
+            if key in item_str:
+                formatted_items.append(item_str.replace(key, val))
+                replaced = True
+                break
+        if not replaced:
+            formatted_items.append(f"🔹 {item_str}")
+
+    return "\n".join([f"• {it}" for it in formatted_items])
+
+
 def get_meal_info(api_key, office_code, school_code, date_str, meal_code):
     url = "https://open.neis.go.kr/hub/mealServiceDietInfo"
     params = {
@@ -67,12 +151,12 @@ def get_meal_info(api_key, office_code, school_code, date_str, meal_code):
 
         cal_info = meal_info.get("CAL_INFO", "정보 없음")
         raw_ntr = meal_info.get("NTR_INFO", "")
-        clean_ntr = raw_ntr.replace("<br/>", ", ").strip()
+        formatted_ntr = format_nutrition_with_emojis(raw_ntr)
 
         return {
             "menu": clean_menu,
             "cal_info": cal_info,
-            "ntr_info": clean_ntr if clean_ntr else "영양 정보 없음",
+            "ntr_info": formatted_ntr,
         }
     except (KeyError, IndexError):
         return None
@@ -92,27 +176,67 @@ def get_current_meal_target(now):
         return (now + datetime.timedelta(days=1)).date(), "1", "내일의 조식"
 
 
-# --- Streamlit UI 구성 ---
-st.title("🍱 우리 학교 급식 알리미")
-st.write(
-    "현재 시각에 맞춘 급식 정보나, 원하는 날짜/식사 종류를 선택하여 조회할 수 있습니다."
+# ---------------------------------------------------------
+# 1. 상단 커버 카드 헤더
+# ---------------------------------------------------------
+st.markdown(
+    """
+    <div class="hero-card">
+        <div class="hero-title">🍱 급식 알리미</div>
+        <div class="hero-subtitle">실시간 맞춤 급식 메뉴와 세부 영양 정보를 확인해 보세요!</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 # KST 기준 현재 시각
 KST = datetime.timezone(datetime.timedelta(hours=9))
 now = datetime.datetime.now(KST)
 
-# 학교 입력
-school_input = st.text_input("학교 이름을 입력하세요", placeholder="예: 서울고등학교")
+# ---------------------------------------------------------
+# 3. 최근 검색 학교 기억 기능 (Session State)
+# ---------------------------------------------------------
+if "history" not in st.session_state:
+    st.session_state.history = []
 
-# 옵션 선택: 자동 vs 직접 선택
-use_custom_date = st.checkbox("📅 날짜 및 식사 직접 선택하기")
+if "search_query" not in st.session_state:
+    st.session_state.search_query = ""
 
+# 검색창 입력값 핸들러
+def update_search():
+    st.session_state.search_query = st.session_state.input_field
+
+
+col_input, col_check = st.columns([2, 1])
+
+with col_input:
+    school_input = st.text_input(
+        "🏫 학교 이름",
+        placeholder="예: 서울고등학교",
+        key="input_field",
+        on_change=update_search,
+    )
+    if st.session_state.search_query:
+        school_input = st.session_state.search_query
+
+with col_check:
+    use_custom_date = st.checkbox("📅 날짜 직접 선택")
+
+# 최근 검색 학교 칩(버튼) 표시
+if st.session_state.history:
+    st.caption("🕒 최근 검색한 학교:")
+    cols = st.columns(len(st.session_state.history) + 1)
+    for idx, recent_sch in enumerate(st.session_state.history):
+        if cols[idx].button(recent_sch, key=f"hist_{idx}"):
+            st.session_state.search_query = recent_sch
+            st.rerun()
+
+# 날짜/식사 직접 선택 UI
 if use_custom_date:
-    col_date, col_meal = st.columns(2)
-    with col_date:
+    col_d, col_m = st.columns(2)
+    with col_d:
         selected_date = st.date_input("조회할 날짜", value=now.date())
-    with col_meal:
+    with col_m:
         meal_option = st.selectbox("식사 구분", ["조식", "중식", "석식"])
         meal_code_map = {"조식": "1", "중식": "2", "석식": "3"}
         meal_code = meal_code_map[meal_option]
@@ -123,56 +247,67 @@ else:
     target_date_str = auto_date.strftime("%Y%m%d")
     meal_title = f"{auto_title} ({auto_date.strftime('%Y년 %m월 %d일')})"
 
-if st.button("급식 조회하기") or school_input:
-    if not school_input.strip():
-        st.warning("학교 이름을 입력해 주세요.")
+# ---------------------------------------------------------
+# 급식 정보 조회 및 화면 출력
+# ---------------------------------------------------------
+if school_input.strip():
+    office_code, school_code, real_school_name = get_school_info(
+        NEIS_API_KEY, school_input
+    )
+
+    if real_school_name == "API_KEY_MISSING":
+        st.error(
+            "🔑 **API 키가 설정되지 않았습니다!**\n\n`app.py` 내 `NEIS_API_KEY`에 키를 넣어주세요."
+        )
+    elif (
+        isinstance(real_school_name, str)
+        and real_school_name.startswith("API_ERROR")
+    ):
+        st.error(f"⚠️ **API 오류:** {real_school_name}")
+    elif not office_code:
+        st.error(f"❌ '{school_input}' 검색 결과를 찾을 수 없습니다.")
     else:
-        office_code, school_code, real_school_name = get_school_info(
-            NEIS_API_KEY, school_input
+        # 최근 검색 히스토리에 학교 저장 (최대 4개)
+        if real_school_name not in st.session_state.history:
+            st.session_state.history.insert(0, real_school_name)
+            st.session_state.history = st.session_state.history[:4]
+
+        st.info(
+            f"🏫 **{real_school_name}** | 🕒 현재 시각: **{now.strftime('%H시 %M분')}**"
+        )
+        st.subheader(f"🍽️ {meal_title}")
+
+        meal_data = get_meal_info(
+            NEIS_API_KEY, office_code, school_code, target_date_str, meal_code
         )
 
-        if real_school_name == "API_KEY_MISSING":
-            st.error(
-                "🔑 **나이스 API 키가 설정되지 않았습니다!**\n\n`app.py` 파일의 `NEIS_API_KEY` 변수에 발급받은 키를 넣어주세요."
-            )
-        elif (
-            isinstance(real_school_name, str)
-            and real_school_name.startswith("API_ERROR")
-        ):
-            st.error(f"⚠️ **나이스 API 오류:** {real_school_name}")
-        elif not office_code:
-            st.error(f"❌ '{school_input}' 검색 결과를 찾을 수 없습니다.")
+        if meal_data:
+            # 2. 식단 카드 디자인 & 칼로리 카드
+            col_menu, col_info = st.columns([3, 2])
+
+            with col_menu:
+                st.markdown("### 🥗 오늘의 메뉴 (알레르기 번호)")
+                formatted_menu = meal_data["menu"].replace("\n", "<br/>")
+                st.markdown(
+                    f'<div class="menu-card">{formatted_menu}</div>',
+                    unsafe_allow_html=True,
+                )
+
+            with col_info:
+                st.markdown("### 📊 건강 정보")
+                # 칼로리 카드 (Metric)
+                st.metric(label="🔥 총 예상 열량", value=meal_data["cal_info"])
+
+                with st.expander("🌱 **세부 영양 성분 보기**", expanded=True):
+                    st.markdown(meal_data["ntr_info"])
+
+            st.markdown("---")
+            with st.expander("⚠️ **알레르기 유발물질 번호 안내**"):
+                st.caption(
+                    """
+                    1.난류 2.우유 3.메밀 4.땅콩 5.대두 6.밀 7.고등어 8.게 9.새우 10.돼지고기  
+                    11.복숭아 12.토마토 13.아황산류 14.호두 15.닭고기 16.쇠고기 17.오징어 18.조개류 19.잣
+                    """
+                )
         else:
-            st.success(
-                f"🏫 **{real_school_name}** | 🕒 현재 시각: {now.strftime('%H시 %M분')}"
-            )
-            st.subheader(f"🍽️ {meal_title}")
-
-            meal_data = get_meal_info(
-                NEIS_API_KEY, office_code, school_code, target_date_str, meal_code
-            )
-
-            if meal_data:
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.markdown("### 🥗 식단 메뉴 (알레르기 번호)")
-                    st.text(meal_data["menu"])
-
-                with col2:
-                    st.markdown("### 🌱 건강 & 영양 정보")
-                    st.info(f"**열량**: {meal_data['cal_info']}")
-                    st.caption(f"**영양 성분**\n{meal_data['ntr_info']}")
-
-                st.markdown("---")
-                with st.expander("⚠️ **알레르기 유발물질 번호 안내**"):
-                    st.markdown(
-                        """
-                        1. 난류 &nbsp;&nbsp;&nbsp;&nbsp; 2. 우유 &nbsp;&nbsp;&nbsp;&nbsp; 3. 메밀 &nbsp;&nbsp;&nbsp;&nbsp; 4. 땅콩 &nbsp;&nbsp;&nbsp;&nbsp; 5. 대두  
-                        6. 밀 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 7. 고등어 &nbsp;&nbsp; 8. 게 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 9. 새우 &nbsp;&nbsp;&nbsp;&nbsp; 10. 돼지고기  
-                        11. 복숭아 &nbsp; 12. 토마토 &nbsp; 13. 아황산류 &nbsp; 14. 호두 &nbsp;&nbsp;&nbsp;&nbsp; 15. 닭고기  
-                        16. 쇠고기 &nbsp; 17. 오징어 &nbsp; 18. 조개류(굴, 전복, 홍합 포함) &nbsp; 19. 잣
-                        """
-                    )
-            else:
-                st.info("해당 날짜/시간대의 급식 정보가 없거나 주말/휴업일입니다.")
+            st.warning("😅 해당 날짜/식사의 급식 정보가 없거나 휴업일(주말)입니다.")
