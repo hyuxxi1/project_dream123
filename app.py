@@ -53,13 +53,13 @@ st.markdown(
 
 # API 키 설정
 if "NEIS_API_KEY" in st.secrets:
-    NEIS_API_KEY = st.secrets["475158beb13640a08d94b5fa99bb678f"]
+    NEIS_API_KEY = st.secrets["NEIS_API_KEY"]
 else:
     NEIS_API_KEY = "475158beb13640a08d94b5fa99bb678f"
 
 
 def get_school_info(api_key, school_name):
-    if api_key == "475158beb13640a08d94b5fa99bb678f" or not api_key:
+    if api_key == "YOUR_NEIS_API_KEY_HERE" or not api_key:
         return None, None, "API_KEY_MISSING"
 
     url = "https://open.neis.go.kr/hub/schoolInfo"
