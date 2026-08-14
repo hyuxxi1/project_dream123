@@ -3,18 +3,21 @@ import re
 import requests
 import streamlit as st
 
-# ---------------------------------------------------------
-# [필수] 나이스 오픈 API 인증키 설정
-# Streamlit Secrets를 사용하거나 직접 키를 입력하세요.
-# ---------------------------------------------------------
-NEIS_API_KEY = "475158beb13640a08d94b5fa99bb678f"
-
 st.set_page_config(
     page_title="학교 급식 알리미", page_icon="🍱", layout="centered"
 )
 
+# 1. Streamlit Secrets에서 API 키를 가져오고, 없으면 변수값 사용
+if "NEIS_API_KEY" in st.secrets:
+    NEIS_API_KEY = st.secrets["NEIS_API_KEY"]
+else:
+    NEIS_API_KEY = "475158beb13640a08d94b5fa99bb678f"  # 여기에 본인 API 키 입력
+
 
 def get_school_info(api_key, school_name):
+    if api_key == "YOUR_NEIS_API_KEY_HERE" or not api_key:
+        return None, None, "API_KEY_MISSING"
+
     url = "https://open.neis.go.kr/hub/schoolInfo"
     params = {
         "KEY": api_key,
@@ -23,9 +26,14 @@ def get_school_info(api_key, school_name):
         "pSize": 10,
         "SCHUL_NM": school_name,
     }
+
     try:
         response = requests.get(url, params=params)
         data = response.json()
+
+        if "RESULT" in data:
+            return None, None, f"API_ERROR: {data['RESULT']['MESSAGE']}"
+
         school_list = data["schoolInfo"][1]["row"]
         school = school_list[0]
         return (
@@ -33,8 +41,8 @@ def get_school_info(api_key, school_name):
             school["SD_SCHUL_CODE"],
             school["SCHUL_NM"],
         )
-    except (KeyError, IndexError):
-        return None, None, None
+    except Exception as e:
+        return None, None, f"ERROR: {str(e)}"
 
 
 def get_meal_info(api_key, office_code, school_code, date_str, meal_code):
@@ -99,10 +107,22 @@ if st.button("급식 조회하기") or school_input:
             NEIS_API_KEY, school_input
         )
 
-        if not office_code:
-            st.error(f"'{school_input}' 검색 결과를 찾을 수 없습니다.")
+        if real_school_name == "API_KEY_MISSING":
+            st.error(
+                "🔑 **나이스 API 키가 설정되지 않았습니다!**\n\n`app.py` 파일의 `NEIS_API_KEY` 변수에 발급받은 키를 넣어주세요."
+            )
+        elif (
+            isinstance(real_school_name, str)
+            and real_school_name.startswith("API_ERROR")
+        ):
+            st.error(f"⚠️ **나이스 API 오류:** {real_school_name}")
+        elif not office_code:
+            st.error(f"❌ '{school_input}' 검색 결과를 찾을 수 없습니다.")
         else:
-            now = datetime.datetime.now()
+            # 💡 한국 표준시(KST, UTC+9) 적용
+            KST = datetime.timezone(datetime.timedelta(hours=9))
+            now = datetime.datetime.now(KST)
+
             target_date, meal_code, meal_title = get_current_meal_target(now)
             date_str = target_date.strftime("%Y%m%d")
             date_formatted = target_date.strftime("%Y년 %m월 %d일")
