@@ -53,7 +53,7 @@ st.markdown(
 
 # API 키 설정
 if "NEIS_API_KEY" in st.secrets:
-    NEIS_API_KEY = st.secrets["NEIS_API_KEY"]
+    NEIS_API_KEY = st.secrets["475158beb13640a08d94b5fa99bb678f"]
 else:
     NEIS_API_KEY = "475158beb13640a08d94b5fa99bb678f"
 
